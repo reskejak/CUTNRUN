@@ -81,13 +81,25 @@ samtools index POI_CUTNRUN.sorted.noDups.filt.bam
 samtools flagstat POI_CUTNRUN.sorted.noDups.filt.bam
 
 ########################################
-# peak calling via MACS2; POI vs. IgG control (broad peaks)
+# peak calling via MACS2; POI vs. IgG control
+
+# e.g. broad peaks with model building for a chromatin regulator
 ~/bin/macs2 callpeak \
 -t POI_CUTNRUN.sorted.noDups.filt.bam \
 -c IgG_CUTNRUN.sorted.noDups.filt.bam \
 -f BAMPE \
 -n POI_CUTNRUN_IgG_broad \
 --broad --broad-cutoff 0.05 \
+-g mm --keep-dup all
+
+# or e.g. narrow peaks without model building for a sharp histone mark like H3K27ac
+~/bin/macs2 callpeak \
+-t POI_CUTNRUN.sorted.noDups.filt.bam \
+-c IgG_CUTNRUN.sorted.noDups.filt.bam \
+-f BAMPE \
+-n POI_CUTNRUN_IgG_narrow \
+--nomodel --extsize 146 \
+-q 0.05 \
 -g mm --keep-dup all
 
 ########################################
