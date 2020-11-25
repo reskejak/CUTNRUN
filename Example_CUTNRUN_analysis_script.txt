@@ -1,0 +1,104 @@
+# example CUT&RUN workflow in Unix
+# Jake Reske - Michigan State University (2020)
+
+# consider a mouse CUT&RUN library for Protein of Interest (POI) for comparison against IgG negative control
+
+########################################
+########################################
+########################################
+
+# fastqc on raw files
+module load fastqc
+fastqc POI_L000_R1_001.fastq.gz
+fastqc POI_L000_R2_001.fastq.gz
+
+########################################
+# trim via Trim Galore! (cutadapt)
+trim_galore --paired -o ~/trimmed \
+POI_L000_R1_001.fastq.gz POI_L000_R2_001.fastq.gz
+
+########################################
+# fastqc on trimmed files
+module load fastqc
+fastqc POI_L000_R1_001_val_1.fq.gz
+fastqc POI_L000_R2_001_val_2.fq.gz
+
+########################################
+# Alignment via bowtie2
+module load bowtie2
+
+# first unzip fastq files
+gunzip POI_L000_R1_001_val_1.fq.gz
+gunzip POI_L000_R2_001_val_2.fq.gz
+
+# align with bowtie2 (e.g. mm10 for mouse)
+bowtie2 -p 16 --very-sensitive \
+-x ~/ref_genome/mm10_bt2_index \
+-1 POI_L000_R1_001_val_1.fq \
+-2 POI_L000_R2_001_val_2.fq | samtools view -bS - > POI_CUTNRUN.bam
+
+# rezip
+gzip POI_L000_R1_001_val_1.fq
+gzip POI_L000_R2_001_val_2.fq
+
+# sort BAM by coordinates
+samtools sort -T POI_CUTNRUN.sorted -o POI_CUTNRUN.sorted.bam POI_CUTNRUN.bam
+
+# index
+samtools index POI_CUTNRUN.sorted.bam
+
+########################################
+# MultiQC on raw and trimmed files
+# execute command in the folder with all fastqc output directories; repeat for raw and trimmed
+python multiqc .
+
+########################################
+# filter for only properly-paired reads
+samtools view -bh -f 3 POI_CUTNRUN.sorted.bam > POI_CUTNRUN.filt.bam
+# -f 3 indicates only properly-paired reads
+
+# sort by coordinates
+samtools sort -T POI_CUTNRUN.sorted.filt -o POI_CUTNRUN.sorted.filt.bam POI_CUTNRUN.filt.bam
+
+# index
+samtools index POI_CUTNRUN.sorted.filt.bam
+
+########################################
+# remove PCR duplicates
+java -jar ~/bin/picard/build/libs/picard.jar MarkDuplicates \
+I=POI_CUTNRUN.sorted.filt.bam \
+O=POI_CUTNRUN.noDups.filt.bam \
+M=POI_CUTNRUN_dups.txt \
+REMOVE_DUPLICATES=true
+
+# sort by coordinates
+samtools sort -T POI_CUTNRUN.sorted.noDups.filt -o POI_CUTNRUN.sorted.noDups.filt.bam POI_CUTNRUN.noDups.filt.bam
+# index
+samtools index POI_CUTNRUN.sorted.noDups.filt.bam
+
+########################################
+# check how many final properly-paired, non-duplicated fragments each sample has
+samtools flagstat POI_CUTNRUN.sorted.noDups.filt.bam
+
+########################################
+# peak calling via MACS2; POI vs. IgG control (broad peaks)
+~/bin/macs2 callpeak \
+-t POI_CUTNRUN.sorted.noDups.filt.bam \
+-c IgG_CUTNRUN.sorted.noDups.filt.bam \
+-f BAMPE \
+-n POI_CUTNRUN_IgG_broad \
+--broad --broad-cutoff 0.05 \
+-g mm --keep-dup all
+
+########################################
+# filter blacklist regions from peak set
+# e.g. against mm10 blacklist peak set
+module load bedtools
+bedtools intersect -v -a POI_CUTNRUN_IgG_broad_peaks.broadPeak \
+-b ~/ref_genome/mm10-blacklist.v2.bed | grep -P 'chr[\dXY]+[ \t]' | awk 'BEGIN{OFS="\t"} {print $0}' \
+> POI_CUTNRUN_IgG_broad_peaks.filt.broadPeak
+
+# count final blacklist-filtered peak calls on properly-paired, non-duplicated fragments:
+wc -l POI_CUTNRUN_IgG_broad_peaks.filt.broadPeak
+
+# note that MACS2 only works well for peak calling with sufficient read depth e.g. as ChIP (>25M paired-end reads per replicate)
