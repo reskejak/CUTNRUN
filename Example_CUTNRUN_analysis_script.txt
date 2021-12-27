@@ -83,34 +83,35 @@ samtools flagstat POI_CUTNRUN.sorted.noDups.filt.bam
 ########################################
 # peak calling via MACS2; POI vs. IgG control
 
-# e.g. broad peaks with model building for a chromatin regulator
+# e.g. broad peaks e.g. for a chromatin regulator
 ~/bin/macs2 callpeak \
 -t POI_CUTNRUN.sorted.noDups.filt.bam \
 -c IgG_CUTNRUN.sorted.noDups.filt.bam \
 -f BAMPE \
--n POI_CUTNRUN_IgG_broad \
+-n POI_CUTNRUN_broad \
 --broad --broad-cutoff 0.05 \
--g mm --keep-dup all
+-g mm \
+--keep-dup all
 
-# or e.g. narrow peaks without model building for a sharp histone mark like H3K27ac
+# or e.g. narrow peaks for a sharp histone mark like H3K27ac
 ~/bin/macs2 callpeak \
 -t POI_CUTNRUN.sorted.noDups.filt.bam \
 -c IgG_CUTNRUN.sorted.noDups.filt.bam \
 -f BAMPE \
--n POI_CUTNRUN_IgG_narrow \
---nomodel --extsize 146 \
+-n POI_CUTNRUN_narrow \
 -q 0.05 \
--g mm --keep-dup all
+-g mm \
+--keep-dup all
 
 ########################################
 # filter blacklist regions from peak set
 # e.g. against mm10 blacklist peak set
 module load bedtools
-bedtools intersect -v -a POI_CUTNRUN_IgG_broad_peaks.broadPeak \
+bedtools intersect -v -a POI_CUTNRUN_broad_peaks.broadPeak \
 -b ~/ref_genome/mm10-blacklist.v2.bed | grep -P 'chr[\dXY]+[ \t]' | awk 'BEGIN{OFS="\t"} {print $0}' \
-> POI_CUTNRUN_IgG_broad_peaks.filt.broadPeak
+> POI_CUTNRUN_broad_peaks.filt.broadPeak
 
 # count final blacklist-filtered peak calls on properly-paired, non-duplicated fragments:
-wc -l POI_CUTNRUN_IgG_broad_peaks.filt.broadPeak
+wc -l POI_CUTNRUN_broad_peaks.filt.broadPeak
 
 # note that MACS2 only works well for peak calling with sufficient read depth e.g. as ChIP (>25M paired-end reads per replicate)
